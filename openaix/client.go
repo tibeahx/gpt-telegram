@@ -24,7 +24,6 @@ func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
 	chat := newChat()
 	return &OpenAi{client: client, logger: logger, chat: chat}
 }
-
 func (ai *OpenAi) ReadPromptFromContext(
 	ctx context.Context,
 	prompt string,

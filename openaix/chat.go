@@ -15,11 +15,11 @@ func newChat() chat {
 func (c chat) toCompletion(messages []string) []openai.ChatCompletionMessage {
 	c.context = make([]openai.ChatCompletionMessage, len(messages))
 
-	for _, msg := range messages {
-		c.context = append(c.context, openai.ChatCompletionMessage{
+	for i, msg := range messages {
+		c.context[i] = openai.ChatCompletionMessage{
 			Role:    c.role,
 			Content: msg,
-		})
+		}
 	}
 	return c.context
 }
