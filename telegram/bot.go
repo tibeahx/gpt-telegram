@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -35,10 +36,6 @@ type Bot struct {
 }
 
 func (b *Bot) manageSession(ctx telebot.Context) error {
-	if ctx.Sender().ID == 0 || ctx.Sender() == nil {
-		return errInvalidSender
-	}
-
 	if b.session == nil {
 		b.session = newSession(ctx)
 	}
@@ -48,14 +45,28 @@ func (b *Bot) manageSession(ctx telebot.Context) error {
 		textToAppend = ctx.Message().Text
 	)
 
-	if messages, ok := b.session[senderId]; ok {
-		b.session[senderId] = append(messages, textToAppend)
-		b.logger.Infof("new message received, total messages: %d", len(b.session.values()))
+	if ctx.Sender().ID == 0 || ctx.Sender() == nil {
+		return errInvalidSender
 	}
 
-	if len(b.session.values()) > 100 {
-		b.logger.Infof("session will be shuled due to oversize\n current len: %d", len(b.session.values()))
-		b.session.flush()
+	messages := b.session.values(senderId)
+
+	if len(messages) > 0 && strings.HasPrefix(messages[0], "/") {
+		b.session[senderId] = messages[1:]
+	}
+
+	if !strings.HasPrefix(textToAppend, "/") {
+		b.logger.Infof("command message ignored: %s", textToAppend)
+		return nil
+	}
+
+	b.session.add(senderId, textToAppend)
+
+	b.logger.Infof("new message received, total messages: %d", len(b.session.values(senderId)))
+
+	if len(b.session.values(senderId)) > 100 {
+		b.logger.Infof("session will be shuled due to oversize\n current len: %d", len(b.session.values(senderId)))
+		b.session.flush(senderId)
 	}
 
 	return nil
@@ -92,7 +103,7 @@ func (b *Bot) HandleCommands(ctx telebot.Context) error {
 func (b *Bot) HandleTune(ctx telebot.Context) error { return nil }
 
 func (b *Bot) HandlePrompt(ctx telebot.Context) error {
-	if ctx.Message().Text == "nil" {
+	if ctx.Message().Text == "" {
 		return errEmptyMsg
 	}
 
@@ -103,7 +114,7 @@ func (b *Bot) HandlePrompt(ctx telebot.Context) error {
 	completion, err := b.openAi.ReadPromptFromContext(
 		context.Background(),
 		ctx.Message().Text,
-		b.session.values(),
+		b.session.values(ctx.Sender().ID),
 	)
 	if err != nil {
 		return err

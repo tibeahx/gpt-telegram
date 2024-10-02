@@ -1,6 +1,12 @@
 package telegram
 
-import "gopkg.in/telebot.v3"
+import (
+	"errors"
+
+	"gopkg.in/telebot.v3"
+)
+
+var errMissingKey = errors.New("missing key")
 
 type session map[int64][]string
 
@@ -10,17 +16,30 @@ func newSession(ctx telebot.Context) session {
 	return s
 }
 
-func (s session) flush() session {
-	s = make(session)
-	return s
+func (s session) flush(key int64) error {
+	if key <= 0 {
+		return errMissingKey
+	}
+	delete(s, key)
+	return nil
 }
 
-func (s session) values() []string {
-	messages := make([]string, 0)
-	for _, msg := range s {
-		if len(msg) > 0 {
-			messages = append(messages, msg...)
-		}
+func (s session) add(key int64, value string) {
+	if key <= 0 || value == "" {
+		return
 	}
-	return messages
+	if _, ok := s[key]; !ok {
+		s[key] = []string{}
+	}
+	s[key] = append(s[key], value)
+}
+
+func (s session) values(key int64) []string {
+	if key == 0 {
+		return nil
+	}
+	if messages, ok := s[key]; ok {
+		return messages
+	}
+	return []string{}
 }
