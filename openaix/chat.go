@@ -9,12 +9,11 @@ type chat struct {
 
 func newChat() chat {
 	role := openai.ChatMessageRoleUser
-	return chat{context: make([]openai.ChatCompletionMessage, 0), role: role}
+	return chat{role: role}
 }
 
 func (c chat) toCompletion(messages []string) []openai.ChatCompletionMessage {
 	c.context = make([]openai.ChatCompletionMessage, len(messages))
-
 	for i, msg := range messages {
 		c.context[i] = openai.ChatCompletionMessage{
 			Role:    c.role,
