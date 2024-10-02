@@ -25,7 +25,7 @@ func (s session) flush(key int64) error {
 }
 
 func (s session) add(key int64, value string) {
-	if key <= 0 || value == "" {
+	if key == 0 || value == "" {
 		return
 	}
 	if _, ok := s[key]; !ok {

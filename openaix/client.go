@@ -2,6 +2,7 @@ package openaix
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
@@ -13,14 +14,15 @@ const (
 )
 
 type OpenAi struct {
-	client  *openai.Client
-	logger  *logrus.Logger
-	context []openai.ChatCompletionMessage
+	client *openai.Client
+	logger *logrus.Logger
+	chat   chat
 }
 
 func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
 	client := openai.NewClient(token)
-	return &OpenAi{client: client, logger: logger}
+	chat := newChat()
+	return &OpenAi{client: client, logger: logger, chat: chat}
 }
 
 func (ai *OpenAi) ReadPromptFromContext(
@@ -28,14 +30,21 @@ func (ai *OpenAi) ReadPromptFromContext(
 	prompt string,
 	messages []string,
 ) (openai.ChatCompletionResponse, error) {
+	if ai.client == nil {
+		return openai.ChatCompletionResponse{}, errors.New("openai client is not initalized")
+	}
+
+	msgx := ai.chat.toCompletion(messages)
 	resp, err := ai.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:     GPT4oMini,
 		MaxTokens: 500,
-		Messages:  ai.context,
+		Messages:  msgx,
 	})
-	ai.logger.Info("sending prompt to openai...")
+
+	ai.logger.Info("sending msg to openai...")
 	if err != nil {
 		return resp, err
 	}
+
 	return resp, nil
 }
