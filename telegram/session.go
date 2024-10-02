@@ -17,7 +17,7 @@ func newSession(ctx telebot.Context) session {
 }
 
 func (s session) flush(key int64) error {
-	if key <= 0 {
+	if key == 0 {
 		return errMissingKey
 	}
 	delete(s, key)
