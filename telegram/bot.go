@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -28,7 +29,7 @@ var (
 type Bot struct {
 	tele    *telebot.Bot
 	logger  *logrus.Logger
-	openAi  openaix.OpenAi
+	openAi  *openaix.OpenAi
 	cmdList []string
 	session session
 }
@@ -60,7 +61,7 @@ func (b *Bot) manageSession(ctx telebot.Context) error {
 	return nil
 }
 
-func NewBot(token string, logger *logrus.Logger, openAi openaix.OpenAi) (*Bot, error) {
+func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
 	opts := telebot.Settings{
 		Token:   token,
 		Poller:  &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -94,7 +95,21 @@ func (b *Bot) HandlePrompt(ctx telebot.Context) error {
 	if ctx.Message().Text == "nil" {
 		return errEmptyMsg
 	}
-	return nil
+
+	if err := b.manageSession(ctx); err != nil {
+		return err
+	}
+
+	completion, err := b.openAi.ReadPromptFromContext(
+		context.Background(),
+		ctx.Message().Text,
+		b.session.values(),
+	)
+	if err != nil {
+		return err
+	}
+
+	return ctx.Send(completion.Choices[0])
 }
 
 func (b *Bot) start() {
