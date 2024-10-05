@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -12,64 +11,25 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-// 1) Получаем сообщение (промт) от пользователя.
-// 2) Если сессии нет, создаем новую для этого пользователя, иначе обновляем существующую.
-// 3) Сохраняем текст сообщения и ID в сессии пользователя.
-// 4) Формируем запрос к GPT с учетом контекста из сессии.
-// 5) Отправляем запрос на сервер GPT.
-// 6) Получаем ответ от GPT и обрабатываем его.
-// 7) Сохраняем ответ в сессию, привязывая к ID пользователя.
-// 8) Отправляем ответ пользователю из сессии.
-// Дополнительно: обработка ошибок, очистка старых сессий, ограничение длины истории сообщений.
-
 var (
-	errEmptyMsg      = errors.New("got empty message")
 	errInvalidSender = errors.New("invalid sender")
+	errEmptyMsg      = errors.New("got empty message")
+)
+
+const (
+	maxSessionCtxLenght = 100
+	prompt              = "/prompt"
+	clear               = "/clear"
+	commands            = "/commands"
 )
 
 type Bot struct {
-	tele    *telebot.Bot
-	logger  *logrus.Logger
-	openAi  *openaix.OpenAi
-	cmdList []string
-	session session
-}
-
-func (b *Bot) manageSession(ctx telebot.Context) error {
-	if b.session == nil {
-		b.session = newSession(ctx)
-	}
-
-	var (
-		senderId     = ctx.Sender().ID
-		textToAppend = ctx.Message().Text
-	)
-
-	if ctx.Sender().ID == 0 || ctx.Sender() == nil {
-		return errInvalidSender
-	}
-
-	messages := b.session.values(senderId)
-
-	if len(messages) > 0 && strings.HasPrefix(messages[0], "/") {
-		b.session[senderId] = messages[1:]
-	}
-
-	if !strings.HasPrefix(textToAppend, "/") {
-		b.logger.Infof("command message ignored: %s", textToAppend)
-		return nil
-	}
-
-	b.session.add(senderId, textToAppend)
-
-	b.logger.Infof("new message received, total messages: %d", len(b.session.values(senderId)))
-
-	if len(b.session.values(senderId)) > 100 {
-		b.logger.Infof("session will be shuled due to oversize\n current len: %d", len(b.session.values(senderId)))
-		b.session.flush(senderId)
-	}
-
-	return nil
+	tele           *telebot.Bot
+	logger         *logrus.Logger
+	openAi         *openaix.OpenAi
+	cmdList        []string
+	session        *session
+	waitingForText map[int64]bool
 }
 
 func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
@@ -85,42 +45,102 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 	}
 
 	return &Bot{
-		tele:    bot,
-		logger:  logger,
-		openAi:  openAi,
-		cmdList: []string{"/start", "/tune", "/prompt"},
+		tele:           bot,
+		logger:         logger,
+		openAi:         openAi,
+		cmdList:        []string{"/start", "/prompt", "/clear"},
+		waitingForText: make(map[int64]bool),
 	}, nil
 }
 
-func (b *Bot) HandleCommands(ctx telebot.Context) error {
-	msg := b.commands()
-	if err := b.manageSession(ctx); err != nil {
-		return err
+func (b *Bot) manageSession(ctx telebot.Context) (int64, error) {
+	if b.session == nil {
+		b.session = newSession(ctx)
 	}
-	return ctx.Send(msg)
+
+	var (
+		sender       = ctx.Sender()
+		senderId     = ctx.Sender().ID
+		textToAppend = ctx.Message().Text
+	)
+
+	if senderId == 0 || sender == nil {
+		return 0, errInvalidSender
+	}
+
+	if len(textToAppend) == 0 {
+		return 0, errEmptyMsg
+	}
+
+	if textToAppend[0] == '/' {
+		b.logger.Warn("got command, will skip to add to session ctx")
+		return senderId, nil
+	}
+
+	if len(b.session.values(senderId)) > maxSessionCtxLenght {
+		b.logger.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.values(senderId)))
+		b.session.flush(senderId)
+	}
+
+	return senderId, nil
 }
 
-func (b *Bot) HandleTune(ctx telebot.Context) error { return nil }
-
 func (b *Bot) HandlePrompt(ctx telebot.Context) error {
-	if ctx.Message().Text == "" {
-		return errEmptyMsg
-	}
-
-	if err := b.manageSession(ctx); err != nil {
-		return err
-	}
-
-	completion, err := b.openAi.ReadPromptFromContext(
-		context.Background(),
-		ctx.Message().Text,
-		b.session.values(ctx.Sender().ID),
-	)
+	senderId, err := b.manageSession(ctx)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Send(completion.Choices[0])
+	if ctx.Message().Text[0] == '/' && ctx.Message().Text == "/prompt" {
+		err := ctx.Send("`enter your prompt`")
+		if err != nil {
+			return err
+		}
+		b.waitingForText[senderId] = true
+	}
+
+	if b.waitingForText[senderId] {
+		b.session.add(senderId, ctx.Message().Text)
+
+		completion, err := b.openAi.ReadPromptFromContext(
+			context.Background(),
+			ctx.Message().Text,
+			b.session.values(ctx.Sender().ID),
+		)
+		if err != nil {
+			return err
+		}
+
+		b.waitingForText[senderId] = false
+		return ctx.Send(completion.Choices[0])
+	}
+
+	return nil
+}
+
+func (b *Bot) HandleClear(ctx telebot.Context) error {
+	senderId, err := b.manageSession(ctx)
+	if err != nil {
+		return err
+	}
+
+	messages := b.session.values(senderId)
+	if len(messages) == 0 {
+		return ctx.Send("noting to delete, your saved messages == 0")
+	}
+
+	b.logger.Info("about to clear session messages")
+	b.session.flush(senderId)
+
+	return ctx.Send(fmt.Sprintf("flushed %d messages", len(messages)))
+}
+
+func (b *Bot) HandleCommands(ctx telebot.Context) error {
+	msg := b.commands()
+	if _, err := b.manageSession(ctx); err != nil {
+		return err
+	}
+	return ctx.Send(msg)
 }
 
 func (b *Bot) start() {
@@ -132,8 +152,8 @@ func (b *Bot) Run() {
 	b.tele.Handle("/commands", func(ctx telebot.Context) error {
 		return b.HandleCommands(ctx)
 	})
-	b.tele.Handle("/tune", func(ctx telebot.Context) error {
-		return b.HandleTune(ctx)
+	b.tele.Handle("/clear", func(ctx telebot.Context) error {
+		return b.HandleClear(ctx)
 	})
 	b.tele.Handle("/prompt", func(ctx telebot.Context) error {
 		return b.HandlePrompt(ctx)
@@ -147,7 +167,7 @@ func (b *Bot) commands() (str string) {
 		if cmd == "" {
 			return ""
 		}
-		str += fmt.Sprintf("\n%s", cmd)
+		str += fmt.Sprintf("`\n%s`", cmd)
 	}
 	return str
 }

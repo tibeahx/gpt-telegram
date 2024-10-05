@@ -42,6 +42,7 @@ func (s *session) add(key int64, value string) {
 	if _, ok := s.store[key]; !ok {
 		s.store[key] = []string{}
 	}
+
 	s.store[key] = append(s.store[key], value)
 
 	s.mu.Unlock()
