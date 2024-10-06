@@ -1,26 +1,46 @@
 package telegram
 
-import "gopkg.in/telebot.v3"
+import (
+	"sync"
 
-type session map[int64][]string
+	"gopkg.in/telebot.v3"
+)
 
-func newSession(ctx telebot.Context) session {
-	s := make(map[int64][]string)
-	s[ctx.Sender().ID] = []string{}
+type session struct {
+	store sync.Map
+}
+
+func newSession(ctx telebot.Context) *session {
+	s := &session{}
+	s.store.Store(ctx.Sender().ID, []string{})
 	return s
 }
 
-func (s session) flush() session {
-	s = make(session)
-	return s
+func (s *session) flush(key int64) {
+	s.store.Delete(key)
 }
 
-func (s session) values() []string {
-	messages := make([]string, 0)
-	for _, msg := range s {
-		if len(msg) > 0 {
-			messages = append(messages, msg...)
-		}
+func (s *session) add(key int64, value string) {
+	if key == 0 || value == "" {
+		return
 	}
-	return messages
+
+	v, _ := s.store.LoadOrStore(key, []string{})
+	values, _ := v.([]string)
+	s.store.Store(key, append(values, value))
+
+}
+
+func (s *session) values(key int64) []string {
+	if key == 0 {
+		return nil
+	}
+
+	v, ok := s.store.Load(key)
+	if !ok {
+		return []string{}
+	}
+
+	values, _ := v.([]string)
+	return values
 }
