@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -73,7 +74,7 @@ func (b *Bot) manageSession(ctx telebot.Context) (int64, error) {
 	}
 
 	if textToAppend[0] == '/' {
-		b.logger.Warn("got command, will skip to add to session ctx")
+		b.logger.Warn("got command, will skip adding to session ctx")
 		return senderId, nil
 	}
 
@@ -91,20 +92,35 @@ func (b *Bot) HandlePrompt(ctx telebot.Context) error {
 		return err
 	}
 
-	if ctx.Message().Text[0] == '/' && ctx.Message().Text == "/prompt" {
+	messageText := ctx.Message().Text
+
+	if messageText[0] == '/' && messageText == "/prompt" {
+		b.waitingForText[senderId] = true
 		err := ctx.Send("`enter your prompt`")
 		if err != nil {
 			return err
 		}
-		b.waitingForText[senderId] = true
+	}
+	return nil
+}
+
+func (b *Bot) HandleText(ctx telebot.Context) error {
+	senderId, err := b.manageSession(ctx)
+	if err != nil {
+		return err
 	}
 
 	if b.waitingForText[senderId] {
-		b.session.add(senderId, ctx.Message().Text)
+		messageText := ctx.Message().Text
+
+		b.logger.Infof("got message: %s", messageText)
+
+		// вот тут ловится дедлок, надо курить
+		b.session.add(senderId, messageText)
 
 		completion, err := b.openAi.ReadPromptFromContext(
 			context.Background(),
-			ctx.Message().Text,
+			messageText,
 			b.session.values(ctx.Sender().ID),
 		)
 		if err != nil {
@@ -117,6 +133,8 @@ func (b *Bot) HandlePrompt(ctx telebot.Context) error {
 
 	return nil
 }
+
+func (b *Bot) HandleVoice(ctx telebot.Context) error { return nil }
 
 func (b *Bot) HandleClear(ctx telebot.Context) error {
 	senderId, err := b.manageSession(ctx)
@@ -158,6 +176,12 @@ func (b *Bot) Run() {
 	b.tele.Handle("/prompt", func(ctx telebot.Context) error {
 		return b.HandlePrompt(ctx)
 	})
+	b.tele.Handle(telebot.OnText, func(ctx telebot.Context) error {
+		return b.HandleText(ctx)
+	})
+	b.tele.Handle(telebot.OnVoice, func(ctx telebot.Context) error {
+		return b.HandleVoice(ctx)
+	})
 	b.start()
 }
 
@@ -170,4 +194,13 @@ func (b *Bot) commands() (str string) {
 		str += fmt.Sprintf("`\n%s`", cmd)
 	}
 	return str
+}
+
+func (b *Bot) isCommand(message string) bool {
+	for _, cmd := range b.cmdList {
+		if strings.HasPrefix(message, cmd) {
+			return true
+		}
+	}
+	return false
 }
