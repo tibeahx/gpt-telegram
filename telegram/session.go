@@ -1,55 +1,46 @@
 package telegram
 
 import (
-	"errors"
 	"sync"
 
 	"gopkg.in/telebot.v3"
 )
 
-var errMissingKey = errors.New("missing key")
-
 type session struct {
-	mu    sync.RWMutex
-	store map[int64][]string
+	store sync.Map
 }
 
 func newSession(ctx telebot.Context) *session {
-	s := &session{store: make(map[int64][]string)}
-	s.store[ctx.Sender().ID] = []string{}
+	s := &session{}
+	s.store.Store(ctx.Sender().ID, []string{})
 	return s
 }
 
-func (s *session) flush(key int64) error {
-	if key == 0 {
-		return errMissingKey
-	}
-	s.mu.Lock()
-	delete(s.store, key)
-	s.mu.Unlock()
-	return nil
+func (s *session) flush(key int64) {
+	s.store.Delete(key)
 }
 
 func (s *session) add(key int64, value string) {
 	if key == 0 || value == "" {
 		return
 	}
-	s.mu.Lock()
-	if _, ok := s.store[key]; !ok {
-		s.store[key] = []string{}
-	}
-	s.store[key] = append(s.store[key], value)
-	s.mu.Unlock()
+
+	v, _ := s.store.LoadOrStore(key, []string{})
+	values, _ := v.([]string)
+	s.store.Store(key, append(values, value))
+
 }
 
 func (s *session) values(key int64) []string {
 	if key == 0 {
 		return nil
 	}
-	s.mu.RLock()
-	if messages, ok := s.store[key]; ok {
-		return messages
+
+	v, ok := s.store.Load(key)
+	if !ok {
+		return []string{}
 	}
-	s.mu.RUnlock()
-	return []string{}
+
+	values, _ := v.([]string)
+	return values
 }

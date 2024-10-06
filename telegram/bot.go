@@ -138,12 +138,10 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		senderId    = c.Sender().ID
 	)
 
-	if messageText != "" && !strings.HasPrefix(messageText, "/") { //&& b.waitingForText[senderId]
+	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForText[senderId] {
 		b.logger.Infof("got message: %s", messageText)
 
-		// вот тут ловится дедлок, надо курить
 		b.session.add(senderId, messageText)
-		b.logger.Infof("added text: %s in session for used:%d", messageText, senderId)
 
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
