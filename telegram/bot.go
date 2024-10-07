@@ -29,13 +29,11 @@ const (
 )
 
 type Bot struct {
-	tele    *telebot.Bot
-	logger  *logrus.Logger
-	openAi  *openaix.OpenAi
-	session *session.Session
-
+	tele          *telebot.Bot
+	logger        *logrus.Logger
+	openAi        *openaix.OpenAi
+	session       *session.Session
 	waitingForMsg map[int64]bool
-	// sessionmap used for stroing senderId: sessionId
 }
 
 func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
