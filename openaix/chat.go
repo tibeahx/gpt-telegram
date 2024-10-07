@@ -4,7 +4,7 @@ import "github.com/sashabaranov/go-openai"
 
 type chat struct {
 	role    string
-	context []openai.ChatCompletionMessage
+	history []openai.ChatCompletionMessage
 }
 
 func newChat() chat {
@@ -13,12 +13,12 @@ func newChat() chat {
 }
 
 func (c chat) toCompletion(messages []string) []openai.ChatCompletionMessage {
-	c.context = make([]openai.ChatCompletionMessage, len(messages))
+	c.history = make([]openai.ChatCompletionMessage, len(messages))
 	for i, msg := range messages {
-		c.context[i] = openai.ChatCompletionMessage{
+		c.history[i] = openai.ChatCompletionMessage{
 			Role:    c.role,
 			Content: msg,
 		}
 	}
-	return c.context
+	return c.history
 }
