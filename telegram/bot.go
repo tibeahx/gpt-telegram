@@ -18,7 +18,6 @@ var (
 	errInvalidSender        = errors.New("invalid sender")
 	errEmptyMsg             = errors.New("got empty message")
 	errfailedProcessMessage = errors.New("failed to process message")
-	errWrongMediatype       = errors.New("got wrong media type")
 )
 
 const (
@@ -102,10 +101,6 @@ func (b *Bot) processMessage(msg *telebot.Message, c telebot.Context) error {
 		return b.HandleVoice(c)
 	}
 
-	if msg.Media() != nil && msg.Media().MediaType() == "photo" {
-		return b.HandlePhoto(c)
-	}
-
 	return nil
 }
 
@@ -144,8 +139,6 @@ func (b *Bot) HandleText(c telebot.Context) error {
 	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg[senderId] {
 		b.logger.Infof("got message: %s", messageText)
 
-		b.session.Add(senderId, messageText)
-
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
 			return err
@@ -164,7 +157,6 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		if err != nil {
 			return err
 		}
-
 		b.waitingForMsg[senderId] = false
 		return c.Send(res)
 	}
@@ -181,13 +173,13 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 	defer cancel()
 
 	files := openaix.NewFiles(b.tele, b.logger)
-	files.DownloadAsync(ctx, file, "mp3")
+	files.DownloadAsync(ctx, file, "ogg")
+	defer files.Cleanup()
 
 	path := files.Filepath()
 	res, err := b.openAi.Transcription(
 		ctx,
 		path,
-		"",
 		c,
 		b.session,
 		senderId,
@@ -198,8 +190,6 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 	b.waitingForMsg[senderId] = false
 	return c.Send(res)
 }
-
-func (b *Bot) HandlePhoto(c telebot.Context) error { return nil }
 
 func (b *Bot) HandleClear(c telebot.Context) error {
 	senderId, err := b.manageSession(c)
@@ -263,10 +253,6 @@ func (b *Bot) Run() {
 
 	b.tele.Handle(telebot.OnVoice, func(c telebot.Context) error {
 		return b.HandleVoice(c)
-	})
-
-	b.tele.Handle(telebot.OnPhoto, func(c telebot.Context) error {
-		return b.HandlePhoto(c)
 	})
 
 	b.start()

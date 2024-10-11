@@ -5,7 +5,6 @@ import "github.com/sashabaranov/go-openai"
 type chat struct {
 	role    string
 	history []openai.ChatCompletionMessage
-	voices  []openai.AudioRequest
 }
 
 func newChat() chat {

@@ -16,6 +16,7 @@ type Files struct {
 	tele     *telebot.Bot
 	logger   *logrus.Logger
 	filePath string
+	found    string
 }
 
 func NewFiles(tele *telebot.Bot, logger *logrus.Logger) Files {
@@ -77,4 +78,25 @@ func (f *Files) download(file *telebot.File, extension string) {
 
 func (f *Files) Filepath() string {
 	return f.filePath
+}
+
+func (f *Files) Cleanup() {
+	root := filepath.Join(".", "files")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			f.logger.Infof("directory %s not found", root)
+			return
+		}
+		f.logger.Errorf("failed to read directory %s: %s", root, err)
+		return
+	}
+
+	for _, entry := range entries {
+		filePath := filepath.Join(root, entry.Name())
+		if err := os.Remove(filePath); err != nil {
+			f.logger.Errorf("failed to remove file %s: %s", filePath, err)
+		}
+	}
+	f.logger.Infof("removed %d files from %s", len(entries), root)
 }

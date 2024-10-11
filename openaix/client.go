@@ -78,16 +78,14 @@ func (ai *OpenAi) ReadPromptFromContext(
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
-
+	session.Add(senderId, resp.Choices[0].Message.Content)
 	ai.logger.Info("got text response from api")
-
 	return resp.Choices[0], nil
 }
 
 func (ai *OpenAi) Transcription(
 	ctx context.Context,
 	path string,
-	prompt string,
 	c telebot.Context,
 	session *session.Session,
 	senderId int64,
@@ -99,16 +97,6 @@ func (ai *OpenAi) Transcription(
 	if path == "" {
 		return "", errNoPath
 	}
-	// положили историю сообщений текущее транкриптнутую
-	session.Add(senderId, prompt)
-
-	// получили все сообщения чтобы кастануть их непонятно во что
-	messages := session.Values(senderId)
-	if messages == nil {
-		return "", errNoValues
-	}
-
-	// вот тут надо как то кастовать
 
 	req := openai.AudioRequest{
 		Model:    Whisper1,
@@ -126,8 +114,7 @@ func (ai *OpenAi) Transcription(
 	if err != nil {
 		return "", err
 	}
-
+	session.Add(senderId, trans.Text)
 	ai.logger.Info("got audio response from api")
-
 	return trans.Text, nil
 }
