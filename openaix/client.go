@@ -17,14 +17,12 @@ const (
 )
 
 var (
-	errNilClient = errors.New("nil ai client")
-	errNoPrompt  = errors.New("got empty prompt")
-	errNoValues  = errors.New("got empty session.values")
-	errNoPath    = errors.New("got empty path")
+	errNoPrompt = errors.New("got empty prompt")
+	errNoValues = errors.New("got empty session.values")
+	errNoPath   = errors.New("got empty path")
 )
 
 type OpenAi struct {
-	Files
 	client *openai.Client
 	logger *logrus.Logger
 	chat   chat
@@ -32,12 +30,14 @@ type OpenAi struct {
 
 func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
 	client := openai.NewClient(token)
-	chat := newChat()
-	return &OpenAi{
-		client: client,
+	ai := &OpenAi{
+		chat:   newChat(),
 		logger: logger,
-		chat:   chat,
 	}
+	if client != nil {
+		ai.client = client
+	}
+	return ai
 }
 
 func (ai *OpenAi) ReadPromptFromContext(
@@ -47,9 +47,6 @@ func (ai *OpenAi) ReadPromptFromContext(
 	session *session.Session,
 	senderId int64,
 ) (openai.ChatCompletionChoice, error) {
-	if ai.client == nil {
-		return openai.ChatCompletionChoice{}, errNilClient
-	}
 	if prompt == "" {
 		return openai.ChatCompletionChoice{}, errNoPrompt
 	}
@@ -85,9 +82,6 @@ func (ai *OpenAi) Transcription(
 	session *session.Session,
 	senderId int64,
 ) (string, error) {
-	if ai.client == nil {
-		return "", errNilClient
-	}
 	if path == "" {
 		return "", errNoPath
 	}
