@@ -18,6 +18,7 @@ var (
 	errInvalidSender        = errors.New("invalid sender")
 	errEmptyMsg             = errors.New("got empty message")
 	errfailedProcessMessage = errors.New("failed to process message")
+	errWrongMediatype       = errors.New("got wrong media type")
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	prompt              = "/prompt"
 	clear               = "/clear"
 	commands            = "/commands"
+	start               = "/start"
 )
 
 type Bot struct {
@@ -58,7 +60,7 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 
 func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 	if b.session == nil {
-		b.session = session.NewSession(c)
+		b.session = session.NewSession(c, b.logger)
 	}
 
 	var (
@@ -90,7 +92,7 @@ func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 
 func (b *Bot) processMessage(msg *telebot.Message, c telebot.Context) error {
 	if msg.Text != "" {
-		if msg.Text == "/clear" {
+		if msg.Text == clear {
 			return b.HandleClear(c)
 		}
 		return b.HandleText(c)
@@ -118,7 +120,7 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 		messageText = c.Message().Text
 	)
 
-	if messageText[0] == '/' && messageText == "/prompt" {
+	if messageText[0] == '/' && messageText == prompt {
 		b.waitingForMsg[senderId] = true
 		err := c.Send("`enter your prompt`")
 		if err != nil {
@@ -169,16 +171,32 @@ func (b *Bot) HandleText(c telebot.Context) error {
 
 	return nil
 }
-
 func (b *Bot) HandleVoice(c telebot.Context) error {
 	var (
-		fileId   = c.Message().Media().MediaFile().FileID
 		file     = c.Message().Media().MediaFile()
 		senderId = c.Sender().ID
 	)
 
-	fmt.Println(file, fileId, senderId)
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+
+	files := openaix.NewFiles(b.tele, b.logger)
+	files.DownloadAsync(ctx, file, "mp3")
+
+	path := files.Filepath()
+	res, err := b.openAi.Transcription(
+		ctx,
+		path,
+		"",
+		c,
+		b.session,
+		senderId,
+	)
+	if err != nil {
+		return err
+	}
+	b.waitingForMsg[senderId] = false
+	return c.Send(res)
 }
 
 func (b *Bot) HandlePhoto(c telebot.Context) error { return nil }
@@ -208,7 +226,7 @@ func (b *Bot) HandleCommands(c telebot.Context) error {
 	return c.Send(msg)
 }
 
-var cmdList = []string{"/start", "/prompt", "/clear"}
+var cmdList = []string{start, prompt, clear, commands}
 
 func (b *Bot) commands() (str string) {
 	str = "current commands are: "
@@ -227,15 +245,15 @@ func (b *Bot) start() {
 }
 
 func (b *Bot) Run() {
-	b.tele.Handle("/commands", func(c telebot.Context) error {
+	b.tele.Handle(commands, func(c telebot.Context) error {
 		return b.HandleCommands(c)
 	})
 
-	b.tele.Handle("/clear", func(c telebot.Context) error {
+	b.tele.Handle(clear, func(c telebot.Context) error {
 		return b.HandleClear(c)
 	})
 
-	b.tele.Handle("/prompt", func(c telebot.Context) error {
+	b.tele.Handle(prompt, func(c telebot.Context) error {
 		return b.HandlePrompt(c)
 	})
 

@@ -4,21 +4,27 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/telebot.v3"
 )
 
 type Session struct {
 	id      string
 	storage sync.Map
+	logger  *logrus.Logger
 }
 
-func NewSession(ctx telebot.Context) *Session {
-	s := &Session{id: uuid.New().String()}
+func NewSession(ctx telebot.Context, logger *logrus.Logger) *Session {
+	s := &Session{
+		id:     uuid.New().String(),
+		logger: logger,
+	}
+
 	s.storage.Store(ctx.Sender().ID, []string{})
 	return s
 }
 
-func (s *Session) GetID() string {
+func (s *Session) ID() string {
 	return s.id
 }
 

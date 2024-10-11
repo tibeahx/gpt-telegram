@@ -24,6 +24,7 @@ var (
 )
 
 type OpenAi struct {
+	Files
 	client *openai.Client
 	logger *logrus.Logger
 	chat   chat
