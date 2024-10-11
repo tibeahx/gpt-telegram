@@ -16,7 +16,6 @@ type Files struct {
 	tele     *telebot.Bot
 	logger   *logrus.Logger
 	filePath string
-	found    string
 }
 
 func NewFiles(tele *telebot.Bot, logger *logrus.Logger) Files {
