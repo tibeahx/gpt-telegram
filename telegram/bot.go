@@ -48,7 +48,6 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 	if err != nil {
 		return nil, err
 	}
-
 	return &Bot{
 		tele:          bot,
 		logger:        logger,
@@ -61,31 +60,25 @@ func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 	if b.session == nil {
 		b.session = session.NewSession(c, b.logger)
 	}
-
 	var (
 		sender      = c.Sender()
 		senderId    = c.Sender().ID
 		messageText = c.Message().Text
 	)
-
 	if senderId == 0 || sender == nil {
 		return 0, errInvalidSender
 	}
-
 	if len(messageText) == 0 {
 		return 0, errEmptyMsg
 	}
-
 	if messageText[0] == '/' {
 		b.logger.Warn("got command, will skip adding to session ctx")
 		return senderId, nil
 	}
-
 	if len(b.session.Values(senderId)) > maxSessionCtxLenght {
 		b.logger.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.Values(senderId)))
 		b.session.Flush(senderId)
 	}
-
 	return senderId, nil
 }
 
@@ -96,11 +89,9 @@ func (b *Bot) processMessage(msg *telebot.Message, c telebot.Context) error {
 		}
 		return b.HandleText(c)
 	}
-
 	if msg.Voice != nil {
 		return b.HandleVoice(c)
 	}
-
 	return nil
 }
 
@@ -109,12 +100,10 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
-
 	var (
 		msg         = c.Message()
 		messageText = c.Message().Text
 	)
-
 	if messageText[0] == '/' && messageText == prompt {
 		b.waitingForMsg[senderId] = true
 		err := c.Send("`enter your prompt`")
@@ -122,11 +111,9 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 			return err
 		}
 	}
-
 	if err := b.processMessage(msg, c); err != nil {
 		return errfailedProcessMessage
 	}
-
 	return nil
 }
 
@@ -135,10 +122,8 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		messageText = c.Message().Text
 		senderId    = c.Sender().ID
 	)
-
 	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg[senderId] {
 		b.logger.Infof("got message: %s", messageText)
-
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
 			return err
@@ -146,7 +131,6 @@ func (b *Bot) HandleText(c telebot.Context) error {
 
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
-
 		res, err := b.openAi.ReadPromptFromContext(
 			ctx,
 			messageText,
@@ -160,7 +144,6 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		b.waitingForMsg[senderId] = false
 		return c.Send(res)
 	}
-
 	return nil
 }
 func (b *Bot) HandleVoice(c telebot.Context) error {
@@ -168,7 +151,6 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 		file     = c.Message().Media().MediaFile()
 		senderId = c.Sender().ID
 	)
-
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 
@@ -196,15 +178,12 @@ func (b *Bot) HandleClear(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
-
 	messages := b.session.Values(senderId)
 	if len(messages) == 0 {
 		return c.Send("noting to delete, your saved messages == 0")
 	}
-
 	b.logger.Info("about to clear session messages")
 	b.session.Flush(senderId)
-
 	return c.Send(fmt.Sprintf("flushed %d messages", len(messages)))
 }
 
@@ -235,25 +214,10 @@ func (b *Bot) start() {
 }
 
 func (b *Bot) Run() {
-	b.tele.Handle(commands, func(c telebot.Context) error {
-		return b.HandleCommands(c)
-	})
-
-	b.tele.Handle(clear, func(c telebot.Context) error {
-		return b.HandleClear(c)
-	})
-
-	b.tele.Handle(prompt, func(c telebot.Context) error {
-		return b.HandlePrompt(c)
-	})
-
-	b.tele.Handle(telebot.OnText, func(c telebot.Context) error {
-		return b.HandleText(c)
-	})
-
-	b.tele.Handle(telebot.OnVoice, func(c telebot.Context) error {
-		return b.HandleVoice(c)
-	})
-
+	b.tele.Handle(commands, func(c telebot.Context) error { return b.HandleCommands(c) })
+	b.tele.Handle(clear, func(c telebot.Context) error { return b.HandleClear(c) })
+	b.tele.Handle(prompt, func(c telebot.Context) error { return b.HandlePrompt(c) })
+	b.tele.Handle(telebot.OnText, func(c telebot.Context) error { return b.HandleText(c) })
+	b.tele.Handle(telebot.OnVoice, func(c telebot.Context) error { return b.HandleVoice(c) })
 	b.start()
 }

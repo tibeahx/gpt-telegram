@@ -50,18 +50,14 @@ func (ai *OpenAi) ReadPromptFromContext(
 	if ai.client == nil {
 		return openai.ChatCompletionChoice{}, errNilClient
 	}
-
 	if prompt == "" {
 		return openai.ChatCompletionChoice{}, errNoPrompt
 	}
-
 	session.Add(senderId, prompt)
-
 	messages := session.Values(senderId)
 	if messages == nil {
 		return openai.ChatCompletionChoice{}, errNoValues
 	}
-
 	msgx := ai.chat.toCompletion(messages)
 
 	err := c.Send("`waiting for openAI response...`")
@@ -69,7 +65,6 @@ func (ai *OpenAi) ReadPromptFromContext(
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
-
 	resp, err := ai.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:     GPT4oMini,
 		MaxTokens: 500,
@@ -93,11 +88,9 @@ func (ai *OpenAi) Transcription(
 	if ai.client == nil {
 		return "", errNilClient
 	}
-
 	if path == "" {
 		return "", errNoPath
 	}
-
 	req := openai.AudioRequest{
 		Model:    Whisper1,
 		FilePath: path,
@@ -109,7 +102,6 @@ func (ai *OpenAi) Transcription(
 	if err != nil {
 		return "", err
 	}
-
 	trans, err := ai.client.CreateTranscription(ctx, req)
 	if err != nil {
 		return "", err
