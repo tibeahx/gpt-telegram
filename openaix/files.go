@@ -60,7 +60,6 @@ func (f *Files) download(file *telebot.File, extension string) {
 	if err := os.MkdirAll(fileDir, os.ModePerm); err != nil {
 		return
 	}
-
 	filePath := filepath.Join(fileDir, fmt.Sprintf("%s.%s", file.FileID, extension))
 	out, err := os.Create(filePath)
 	if err != nil {
@@ -90,7 +89,6 @@ func (f *Files) Cleanup() {
 		f.logger.Errorf("failed to read directory %s: %s", root, err)
 		return
 	}
-
 	for _, entry := range entries {
 		filePath := filepath.Join(root, entry.Name())
 		if err := os.Remove(filePath); err != nil {
