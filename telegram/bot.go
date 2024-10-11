@@ -9,6 +9,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tibeahx/gpt-helper/openaix"
+	"github.com/tibeahx/gpt-helper/session"
+
 	"gopkg.in/telebot.v3"
 )
 
@@ -20,18 +22,19 @@ var (
 
 const (
 	maxSessionCtxLenght = 100
+	requestTimeout      = 5 * time.Second
 	prompt              = "/prompt"
 	clear               = "/clear"
 	commands            = "/commands"
+	start               = "/start"
 )
 
 type Bot struct {
-	tele           *telebot.Bot
-	logger         *logrus.Logger
-	openAi         *openaix.OpenAi
-	cmdList        []string
-	session        *session
-	waitingForText map[int64]bool
+	tele          *telebot.Bot
+	logger        *logrus.Logger
+	openAi        *openaix.OpenAi
+	session       *session.Session
+	waitingForMsg map[int64]bool
 }
 
 func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
@@ -47,17 +50,16 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 	}
 
 	return &Bot{
-		tele:           bot,
-		logger:         logger,
-		openAi:         openAi,
-		cmdList:        []string{"/start", "/prompt", "/clear"},
-		waitingForText: make(map[int64]bool),
+		tele:          bot,
+		logger:        logger,
+		openAi:        openAi,
+		waitingForMsg: make(map[int64]bool),
 	}, nil
 }
 
 func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 	if b.session == nil {
-		b.session = newSession(c)
+		b.session = session.NewSession(c, b.logger)
 	}
 
 	var (
@@ -79,9 +81,9 @@ func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 		return senderId, nil
 	}
 
-	if len(b.session.values(senderId)) > maxSessionCtxLenght {
-		b.logger.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.values(senderId)))
-		b.session.flush(senderId)
+	if len(b.session.Values(senderId)) > maxSessionCtxLenght {
+		b.logger.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.Values(senderId)))
+		b.session.Flush(senderId)
 	}
 
 	return senderId, nil
@@ -89,7 +91,7 @@ func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 
 func (b *Bot) processMessage(msg *telebot.Message, c telebot.Context) error {
 	if msg.Text != "" {
-		if msg.Text == "/clear" {
+		if msg.Text == clear {
 			return b.HandleClear(c)
 		}
 		return b.HandleText(c)
@@ -97,10 +99,6 @@ func (b *Bot) processMessage(msg *telebot.Message, c telebot.Context) error {
 
 	if msg.Voice != nil {
 		return b.HandleVoice(c)
-	}
-
-	if msg.Media().MediaType() == "photo" {
-		return b.HandlePhoto(c)
 	}
 
 	return nil
@@ -117,8 +115,8 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 		messageText = c.Message().Text
 	)
 
-	if messageText[0] == '/' && messageText == "/prompt" {
-		b.waitingForText[senderId] = true
+	if messageText[0] == '/' && messageText == prompt {
+		b.waitingForMsg[senderId] = true
 		err := c.Send("`enter your prompt`")
 		if err != nil {
 			return err
@@ -138,36 +136,60 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		senderId    = c.Sender().ID
 	)
 
-	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForText[senderId] {
+	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg[senderId] {
 		b.logger.Infof("got message: %s", messageText)
-
-		b.session.add(senderId, messageText)
 
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
 			return err
 		}
 
-		completion, err := b.openAi.ReadPromptFromContext(
-			context.Background(),
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		defer cancel()
+
+		res, err := b.openAi.ReadPromptFromContext(
+			ctx,
 			messageText,
-			b.session.values(c.Sender().ID),
 			c,
+			b.session,
+			senderId,
 		)
 		if err != nil {
 			return err
 		}
-
-		b.waitingForText[senderId] = false
-		return c.Send(completion.Choices[0])
+		b.waitingForMsg[senderId] = false
+		return c.Send(res)
 	}
 
 	return nil
 }
+func (b *Bot) HandleVoice(c telebot.Context) error {
+	var (
+		file     = c.Message().Media().MediaFile()
+		senderId = c.Sender().ID
+	)
 
-func (b *Bot) HandleVoice(c telebot.Context) error { return nil }
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
 
-func (b *Bot) HandlePhoto(c telebot.Context) error { return nil }
+	files := openaix.NewFiles(b.tele, b.logger)
+	files.DownloadAsync(ctx, file, "ogg")
+	defer files.Cleanup()
+
+	path := files.Filepath()
+	res, err := b.openAi.Transcription(
+		ctx,
+		path,
+		c,
+		b.session,
+		senderId,
+	)
+	if err != nil {
+		return err
+	}
+	b.waitingForMsg[senderId] = false
+	return c.Send(res)
+}
 
 func (b *Bot) HandleClear(c telebot.Context) error {
 	senderId, err := b.manageSession(c)
@@ -175,13 +197,13 @@ func (b *Bot) HandleClear(c telebot.Context) error {
 		return err
 	}
 
-	messages := b.session.values(senderId)
+	messages := b.session.Values(senderId)
 	if len(messages) == 0 {
 		return c.Send("noting to delete, your saved messages == 0")
 	}
 
 	b.logger.Info("about to clear session messages")
-	b.session.flush(senderId)
+	b.session.Flush(senderId)
 
 	return c.Send(fmt.Sprintf("flushed %d messages", len(messages)))
 }
@@ -194,21 +216,34 @@ func (b *Bot) HandleCommands(c telebot.Context) error {
 	return c.Send(msg)
 }
 
+var cmdList = []string{start, prompt, clear, commands}
+
+func (b *Bot) commands() (str string) {
+	str = "current commands are: "
+	for _, cmd := range cmdList {
+		if cmd == "" {
+			return ""
+		}
+		str += fmt.Sprintf("`\n%s`", cmd)
+	}
+	return str
+}
+
 func (b *Bot) start() {
 	b.logger.Info("bot started...")
 	b.tele.Start()
 }
 
 func (b *Bot) Run() {
-	b.tele.Handle("/commands", func(c telebot.Context) error {
+	b.tele.Handle(commands, func(c telebot.Context) error {
 		return b.HandleCommands(c)
 	})
 
-	b.tele.Handle("/clear", func(c telebot.Context) error {
+	b.tele.Handle(clear, func(c telebot.Context) error {
 		return b.HandleClear(c)
 	})
 
-	b.tele.Handle("/prompt", func(c telebot.Context) error {
+	b.tele.Handle(prompt, func(c telebot.Context) error {
 		return b.HandlePrompt(c)
 	})
 
@@ -220,20 +255,5 @@ func (b *Bot) Run() {
 		return b.HandleVoice(c)
 	})
 
-	b.tele.Handle(telebot.OnPhoto, func(c telebot.Context) error {
-		return b.HandlePhoto(c)
-	})
-
 	b.start()
-}
-
-func (b *Bot) commands() (str string) {
-	str = "current commands are: "
-	for _, cmd := range b.cmdList {
-		if cmd == "" {
-			return ""
-		}
-		str += fmt.Sprintf("`\n%s`", cmd)
-	}
-	return str
 }
