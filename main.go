@@ -6,15 +6,12 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/telegram"
 )
-
-var shutdownTimeout = 2 * time.Second
 
 func main() {
 	l := logrus.New()
