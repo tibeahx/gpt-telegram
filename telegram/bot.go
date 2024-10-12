@@ -133,7 +133,7 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		defer cancel()
 
 		res, err := b.openAi.ReadPromptFromContext(
-			openaix.Props{
+			openaix.Options{
 				Ctx:      ctx,
 				Prompt:   messageText,
 				C:        c,
@@ -164,7 +164,7 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 
 	path := files.Filepath()
 	res, err := b.openAi.Transcription(
-		openaix.Props{
+		openaix.Options{
 			Ctx:      ctx,
 			Path:     path,
 			C:        c,

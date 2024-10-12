@@ -40,7 +40,7 @@ func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
 	return ai
 }
 
-type Props struct {
+type Options struct {
 	Ctx      context.Context
 	Prompt   string
 	C        telebot.Context
@@ -49,23 +49,23 @@ type Props struct {
 	Path     string
 }
 
-func (ai *OpenAi) ReadPromptFromContext(p Props) (openai.ChatCompletionChoice, error) {
-	if p.Prompt == "" {
+func (ai *OpenAi) ReadPromptFromContext(opts Options) (openai.ChatCompletionChoice, error) {
+	if opts.Prompt == "" {
 		return openai.ChatCompletionChoice{}, errNoPrompt
 	}
-	p.Session.Add(p.SenderID, p.Prompt)
-	messages := p.Session.Values(p.SenderID)
+	opts.Session.Add(opts.SenderID, opts.Prompt)
+	messages := opts.Session.Values(opts.SenderID)
 	if messages == nil {
 		return openai.ChatCompletionChoice{}, errNoValues
 	}
 	msgx := ai.chat.toCompletion(messages)
 
-	err := p.C.Send("`waiting for openAI response...`")
+	err := opts.C.Send("`waiting for openAI response...`")
 	ai.logger.Info("sent text prompt to api")
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
-	resp, err := ai.client.CreateChatCompletion(p.Ctx, openai.ChatCompletionRequest{
+	resp, err := ai.client.CreateChatCompletion(opts.Ctx, openai.ChatCompletionRequest{
 		Model:     GPT4oMini,
 		MaxTokens: 500,
 		Messages:  msgx,
@@ -73,31 +73,31 @@ func (ai *OpenAi) ReadPromptFromContext(p Props) (openai.ChatCompletionChoice, e
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
-	p.Session.Add(p.SenderID, resp.Choices[0].Message.Content)
+	opts.Session.Add(opts.SenderID, resp.Choices[0].Message.Content)
 	ai.logger.Info("got text response from api")
 	return resp.Choices[0], nil
 }
 
-func (ai *OpenAi) Transcription(p Props) (string, error) {
-	if p.Prompt == "" {
+func (ai *OpenAi) Transcription(opts Options) (string, error) {
+	if opts.Prompt == "" {
 		return "", errNoPath
 	}
 	req := openai.AudioRequest{
 		Model:    Whisper1,
-		FilePath: p.Prompt,
+		FilePath: opts.Prompt,
 		Format:   openai.AudioResponseFormatText,
 	}
 
-	err := p.C.Send("`waiting for openAI response...`")
+	err := opts.C.Send("`waiting for openAI response...`")
 	ai.logger.Info("sent audio prompt to api")
 	if err != nil {
 		return "", err
 	}
-	trans, err := ai.client.CreateTranscription(p.Ctx, req)
+	trans, err := ai.client.CreateTranscription(opts.Ctx, req)
 	if err != nil {
 		return "", err
 	}
-	p.Session.Add(p.SenderID, trans.Text)
+	opts.Session.Add(opts.SenderID, trans.Text)
 	ai.logger.Info("got audio response from api")
 	return trans.Text, nil
 }
