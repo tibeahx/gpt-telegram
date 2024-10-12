@@ -149,6 +149,7 @@ func (b *Bot) HandleText(c telebot.Context) error {
 	}
 	return nil
 }
+
 func (b *Bot) HandleVoice(c telebot.Context) error {
 	var (
 		file     = c.Message().Media().MediaFile()
@@ -218,11 +219,24 @@ func (b *Bot) start() {
 	b.tele.Start()
 }
 
+func (b *Bot) initHandlers() {
+	handlers := []struct {
+		Command string
+		Handler telebot.HandlerFunc
+	}{
+		{commands, b.HandleCommands},
+		{clear, b.HandleClear},
+		{prompt, b.HandlePrompt},
+		{telebot.OnText, b.HandleText},
+		{telebot.OnVoice, b.HandleVoice},
+	}
+
+	for _, h := range handlers {
+		b.tele.Handle(h.Command, h.Handler)
+	}
+}
+
 func (b *Bot) Run() {
-	b.tele.Handle(commands, func(c telebot.Context) error { return b.HandleCommands(c) })
-	b.tele.Handle(clear, func(c telebot.Context) error { return b.HandleClear(c) })
-	b.tele.Handle(prompt, func(c telebot.Context) error { return b.HandlePrompt(c) })
-	b.tele.Handle(telebot.OnText, func(c telebot.Context) error { return b.HandleText(c) })
-	b.tele.Handle(telebot.OnVoice, func(c telebot.Context) error { return b.HandleVoice(c) })
+	b.initHandlers()
 	b.start()
 }
