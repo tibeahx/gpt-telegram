@@ -93,6 +93,7 @@ func (f *Files) Cleanup() {
 		filePath := filepath.Join(root, entry.Name())
 		if err := os.Remove(filePath); err != nil {
 			f.logger.Errorf("failed to remove file %s: %s", filePath, err)
+			return
 		}
 	}
 	f.logger.Infof("removed %d files from %s", len(entries), root)
