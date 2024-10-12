@@ -34,7 +34,7 @@ type Bot struct {
 	logger        *logrus.Logger
 	openAi        *openaix.OpenAi
 	session       *session.Session
-	waitingForMsg map[int64]bool
+	waitingForMsg map[int64]struct{}
 }
 
 func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
@@ -52,7 +52,7 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 		tele:          bot,
 		logger:        logger,
 		openAi:        openAi,
-		waitingForMsg: make(map[int64]bool),
+		waitingForMsg: map[int64]struct{}{},
 	}, nil
 }
 
@@ -105,7 +105,7 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 		messageText = c.Message().Text
 	)
 	if messageText[0] == '/' && messageText == prompt {
-		b.waitingForMsg[senderId] = true
+		b.waitingForMsg[senderId] = struct{}{}
 		err := c.Send("`enter your prompt`")
 		if err != nil {
 			return err
@@ -122,7 +122,7 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		messageText = c.Message().Text
 		senderId    = c.Sender().ID
 	)
-	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg[senderId] {
+	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg != nil {
 		b.logger.Infof("got message: %s", messageText)
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
@@ -144,7 +144,7 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		if err != nil {
 			return err
 		}
-		b.waitingForMsg[senderId] = false
+		b.waitingForMsg[senderId] = struct{}{}
 		return c.Send(res)
 	}
 	return nil
@@ -175,7 +175,7 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
-	b.waitingForMsg[senderId] = false
+	b.waitingForMsg[senderId] = struct{}{}
 	return c.Send(res)
 }
 
