@@ -219,6 +219,11 @@ func (b *Bot) start() {
 	b.tele.Start()
 }
 
+func (b *Bot) Stop() {
+	b.logger.Info("bot stopping...")
+	b.tele.Stop()
+}
+
 func (b *Bot) initHandlers() {
 	handlers := []struct {
 		cmd     string

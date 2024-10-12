@@ -3,12 +3,18 @@ package main
 import (
 	"log"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/telegram"
 )
+
+var shutdownTimeout = 2 * time.Second
 
 func main() {
 	l := logrus.New()
@@ -21,5 +27,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	b.Run()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		b.Run()
+		defer wg.Done()
+	}()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+
+	<-sig
+
+	l.Info("shutting down...")
+	b.Stop()
 }
