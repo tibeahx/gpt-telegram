@@ -131,12 +131,15 @@ func (b *Bot) HandleText(c telebot.Context) error {
 
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
+
 		res, err := b.openAi.ReadPromptFromContext(
-			ctx,
-			messageText,
-			c,
-			b.session,
-			senderId,
+			openaix.Props{
+				Ctx:      ctx,
+				Prompt:   messageText,
+				C:        c,
+				Session:  b.session,
+				SenderID: senderId,
+			},
 		)
 		if err != nil {
 			return err
@@ -160,11 +163,13 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 
 	path := files.Filepath()
 	res, err := b.openAi.Transcription(
-		ctx,
-		path,
-		c,
-		b.session,
-		senderId,
+		openaix.Props{
+			Ctx:      ctx,
+			Path:     path,
+			C:        c,
+			Session:  b.session,
+			SenderID: senderId,
+		},
 	)
 	if err != nil {
 		return err
