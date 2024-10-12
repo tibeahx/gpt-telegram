@@ -32,12 +32,12 @@ const (
 type Bot struct {
 	tele          *telebot.Bot
 	logger        *logrus.Logger
-	openAi        *openaix.OpenAi
+	openai        *openaix.OpenAI
 	session       *session.Session
 	waitingForMsg map[int64]struct{}
 }
 
-func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, error) {
+func NewBot(token string, logger *logrus.Logger, openai *openaix.OpenAI) (*Bot, error) {
 	opts := telebot.Settings{
 		Token:   token,
 		Poller:  &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -51,7 +51,7 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 	return &Bot{
 		tele:          bot,
 		logger:        logger,
-		openAi:        openAi,
+		openai:        openai,
 		waitingForMsg: make(map[int64]struct{}),
 	}, nil
 }
@@ -132,9 +132,9 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
 
-		res, err := b.openAi.ReadPromptFromContext(
+		res, err := b.openai.ReadPromptFromContext(
+			ctx,
 			openaix.Options{
-				Ctx:      ctx,
 				Prompt:   messageText,
 				C:        c,
 				Session:  b.session,
@@ -163,9 +163,9 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 	defer files.Cleanup()
 
 	path := files.Filepath()
-	res, err := b.openAi.Transcription(
+	res, err := b.openai.Transcription(
+		ctx,
 		openaix.Options{
-			Ctx:      ctx,
 			Path:     path,
 			C:        c,
 			Session:  b.session,

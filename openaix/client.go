@@ -22,15 +22,15 @@ var (
 	errNoPath   = errors.New("got empty path")
 )
 
-type OpenAi struct {
+type OpenAI struct {
 	client *openai.Client
 	logger *logrus.Logger
 	chat   chat
 }
 
-func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
+func NewOpenAi(token string, logger *logrus.Logger) *OpenAI {
 	client := openai.NewClient(token)
-	ai := &OpenAi{
+	ai := &OpenAI{
 		chat:   newChat(),
 		logger: logger,
 	}
@@ -41,7 +41,6 @@ func NewOpenAi(token string, logger *logrus.Logger) *OpenAi {
 }
 
 type Options struct {
-	Ctx      context.Context
 	Prompt   string
 	C        telebot.Context
 	Session  *session.Session
@@ -49,7 +48,7 @@ type Options struct {
 	Path     string
 }
 
-func (ai *OpenAi) ReadPromptFromContext(opts Options) (openai.ChatCompletionChoice, error) {
+func (ai *OpenAI) ReadPromptFromContext(ctx context.Context, opts Options) (openai.ChatCompletionChoice, error) {
 	if opts.Prompt == "" {
 		return openai.ChatCompletionChoice{}, errNoPrompt
 	}
@@ -65,7 +64,7 @@ func (ai *OpenAi) ReadPromptFromContext(opts Options) (openai.ChatCompletionChoi
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
-	resp, err := ai.client.CreateChatCompletion(opts.Ctx, openai.ChatCompletionRequest{
+	resp, err := ai.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:     GPT4oMini,
 		MaxTokens: 500,
 		Messages:  msgx,
@@ -78,7 +77,7 @@ func (ai *OpenAi) ReadPromptFromContext(opts Options) (openai.ChatCompletionChoi
 	return resp.Choices[0], nil
 }
 
-func (ai *OpenAi) Transcription(opts Options) (string, error) {
+func (ai *OpenAI) Transcription(ctx context.Context, opts Options) (string, error) {
 	if opts.Prompt == "" {
 		return "", errNoPath
 	}
@@ -93,7 +92,7 @@ func (ai *OpenAi) Transcription(opts Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	trans, err := ai.client.CreateTranscription(opts.Ctx, req)
+	trans, err := ai.client.CreateTranscription(ctx, req)
 	if err != nil {
 		return "", err
 	}
