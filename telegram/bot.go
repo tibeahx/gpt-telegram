@@ -52,7 +52,7 @@ func NewBot(token string, logger *logrus.Logger, openAi *openaix.OpenAi) (*Bot, 
 		tele:          bot,
 		logger:        logger,
 		openAi:        openAi,
-		waitingForMsg: map[int64]struct{}{},
+		waitingForMsg: make(map[int64]struct{}),
 	}, nil
 }
 
@@ -221,8 +221,8 @@ func (b *Bot) start() {
 
 func (b *Bot) initHandlers() {
 	handlers := []struct {
-		Command string
-		Handler telebot.HandlerFunc
+		cmd     string
+		handler telebot.HandlerFunc
 	}{
 		{commands, b.HandleCommands},
 		{clear, b.HandleClear},
@@ -232,7 +232,7 @@ func (b *Bot) initHandlers() {
 	}
 
 	for _, h := range handlers {
-		b.tele.Handle(h.Command, h.Handler)
+		b.tele.Handle(h.cmd, h.handler)
 	}
 }
 
