@@ -144,7 +144,7 @@ func (b *Bot) HandleText(c telebot.Context) error {
 		if err != nil {
 			return err
 		}
-		b.waitingForMsg[senderId] = struct{}{}
+		delete(b.waitingForMsg, senderId)
 		return c.Send(res)
 	}
 	return nil
@@ -175,7 +175,7 @@ func (b *Bot) HandleVoice(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
-	b.waitingForMsg[senderId] = struct{}{}
+	delete(b.waitingForMsg, senderId)
 	return c.Send(res)
 }
 
