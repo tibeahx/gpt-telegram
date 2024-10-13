@@ -10,7 +10,7 @@
 
 Chat with the bot on Telegram and use these commands:
 - `/start`: Begin chatting
-- `/prompt`: Enter a custom prompt
+- `/prompt`: Enter a custom text prompt or just send a voice message
 - `/clear`: Reset conversation
 - `/commands`: See available commands
 
