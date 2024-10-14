@@ -43,7 +43,7 @@ func NewOpenAi(token string, logger *logrus.Logger) *OpenAI {
 type Options struct {
 	Prompt   string
 	C        telebot.Context
-	Session  *session.Session
+	Session  *session.InMemorySession
 	SenderID int64
 	Path     string
 }

@@ -33,7 +33,7 @@ type Bot struct {
 	tele          *telebot.Bot
 	logger        *logrus.Logger
 	openai        *openaix.OpenAI
-	session       *session.Session
+	session       *session.InMemorySession
 	waitingForMsg map[int64]struct{}
 }
 
