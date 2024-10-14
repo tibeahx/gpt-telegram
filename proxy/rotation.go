@@ -10,12 +10,6 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-var (
-	errInvalidProxyUrl      = errors.New("invalid proxy URL")
-	errUnsupportedProxyType = errors.New("unsupported proxy type")
-	errCreatingSocks5Dialer = errors.New("error init SOCKS5 dialer")
-)
-
 type Rotation struct {
 	proxies         []Proxy
 	currentProxyIdx int
@@ -34,6 +28,8 @@ func NewRotation(filepath string) (*Rotation, error) {
 	}
 	return rotate, nil
 }
+
+var errInvalidProxyUrl = errors.New("invalid proxy URL")
 
 func (r *Rotation) updateDialer() error {
 	cp := r.currentProxy()
