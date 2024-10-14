@@ -24,7 +24,7 @@ You'll need:
 Steps:
 1. Clone the repo
 2. Run `go mod download`
-3. Set your API keys as env variables
+3. Set your API keys as env variables or set via .env (see "envexample")
 4. Build with `go build -o gpt-helper .`
 5. Run it: `./gpt-helper`
 
