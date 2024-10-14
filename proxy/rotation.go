@@ -36,27 +36,16 @@ func NewRotation(filepath string) (*Rotation, error) {
 }
 
 func (r *Rotation) updateDialer() error {
-	currentProxy := r.currentProxy()
-	switch currentProxy.Type {
-	case "http", "https":
-		proxyURL, err := url.Parse(currentProxy.String())
-		if err != nil {
-			return errInvalidProxyUrl
-		}
-		dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
-		if err != nil {
-			return errInvalidProxyUrl
-		}
-		r.dialer = dialer
-	case "socks5":
-		dialer, err := proxy.SOCKS5("tcp", currentProxy.String(), nil, proxy.Direct)
-		if err != nil {
-			return errCreatingSocks5Dialer
-		}
-		r.dialer = dialer
-	default:
-		return errUnsupportedProxyType
+	cp := r.currentProxy()
+	proxyURL, err := url.Parse(cp.String())
+	if err != nil {
+		return errInvalidProxyUrl
 	}
+	dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+	if err != nil {
+		return errInvalidProxyUrl
+	}
+	r.dialer = dialer
 	return nil
 }
 

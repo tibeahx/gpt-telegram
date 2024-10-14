@@ -46,3 +46,7 @@ func (p Proxy) FromFile(filepath string) ([]Proxy, error) {
 func (p Proxy) String() string {
 	return fmt.Sprintf("%s://%s:%s@%s:%d", p.Type, p.User, p.Pass, p.Ip, p.Port)
 }
+
+func (p Proxy) Addr() string {
+	return fmt.Sprintf("%s:%d", p.Ip, p.Port)
+}
