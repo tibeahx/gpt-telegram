@@ -8,14 +8,14 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-type Session struct {
+type InMemorySession struct {
 	id      string
 	storage sync.Map
 	logger  *logrus.Logger
 }
 
-func NewSession(ctx telebot.Context, logger *logrus.Logger) *Session {
-	s := &Session{
+func NewSession(ctx telebot.Context, logger *logrus.Logger) *InMemorySession {
+	s := &InMemorySession{
 		id:     uuid.New().String(),
 		logger: logger,
 	}
@@ -23,15 +23,15 @@ func NewSession(ctx telebot.Context, logger *logrus.Logger) *Session {
 	return s
 }
 
-func (s *Session) ID() string {
+func (s *InMemorySession) ID() string {
 	return s.id
 }
 
-func (s *Session) Flush(key int64) {
+func (s *InMemorySession) Flush(key int64) {
 	s.storage.Delete(key)
 }
 
-func (s *Session) Add(key int64, value string) {
+func (s *InMemorySession) Add(key int64, value string) {
 	if key == 0 || value == "" {
 		return
 	}
@@ -40,7 +40,7 @@ func (s *Session) Add(key int64, value string) {
 	s.storage.Store(key, append(values, value))
 }
 
-func (s *Session) Values(key int64) []string {
+func (s *InMemorySession) Values(key int64) []string {
 	if key == 0 {
 		return nil
 	}
