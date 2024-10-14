@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -36,7 +37,6 @@ func NewRotation(filepath string) (*Rotation, error) {
 
 func (r *Rotation) updateDialer() error {
 	currentProxy := r.currentProxy()
-
 	switch currentProxy.Type {
 	case "http", "https":
 		proxyURL, err := url.Parse(currentProxy.String())
@@ -69,16 +69,18 @@ func (r *Rotation) makeHttpClient() {
 	}
 }
 
-func (r *Rotation) Start(dur time.Duration) {
+func (r *Rotation) Start(dur time.Duration, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(dur)
 	defer ticker.Stop()
 
 	for range ticker.C {
+		wg.Add(1)
 		if err := r.updateDialer(); err != nil {
 			return
 		}
 		r.advanceProxyIndex()
 		r.makeHttpClient()
+		wg.Done()
 	}
 }
 

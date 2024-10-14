@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 )
 
 var (
@@ -27,15 +28,19 @@ func (p Proxy) FromFile(filepath string) ([]Proxy, error) {
 	if filepath == "" {
 		return nil, errEmptyFilepath
 	}
-	jsnFile, err := os.ReadFile(filepath)
+	jsnFile, err := os.ReadFile(path.Join(".", "proxy.json"))
 	if err != nil {
+		fmt.Printf("error reading file: %v\n", err)
 		return nil, errFailedToReadFile
 	}
-	proxies := make([]Proxy, len(jsnFile))
-	if err := json.Unmarshal(jsnFile, &proxies); err != nil {
+	var wrapper struct {
+		Proxies []Proxy `json:"proxies"`
+	}
+	if err := json.Unmarshal(jsnFile, &wrapper); err != nil {
+		fmt.Printf("error unmarshaling file: %v\n", err)
 		return nil, errFailedToUnmarshalFile
 	}
-	return proxies, nil
+	return wrapper.Proxies, nil
 }
 
 func (p Proxy) String() string {
