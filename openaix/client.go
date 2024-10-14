@@ -65,7 +65,7 @@ func (ai *OpenAI) ReadPromptFromContext(ctx context.Context, opts Options) (open
 		return openai.ChatCompletionChoice{}, err
 	}
 	resp, err := ai.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model:     GPT4oMini,
+		Model:     GPT4oMini, //change to GPT4o if needed
 		MaxTokens: 500,
 		Messages:  msgx,
 	})
