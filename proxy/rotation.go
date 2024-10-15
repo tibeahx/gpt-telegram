@@ -29,26 +29,14 @@ func NewRotation(filepath string) (*Rotation, error) {
 	rotate := &Rotation{
 		proxies: proxies,
 	}
-	if err := rotate.setDialer(); err != nil {
-		return nil, fmt.Errorf("failed to set initial dialer: %w", err)
-	}
+	rotate.setDialer()
 	return rotate, nil
 }
 
-func (r *Rotation) setDialer() error {
+func (r *Rotation) setDialer() {
 	if r.httpClient == nil {
-		cp := r.currentProxy()
-		proxyURL, err := url.Parse(cp.String())
-		if err != nil {
-			return fmt.Errorf("failed to parse proxy url: %w", err)
-		}
-		dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
-		if err != nil {
-			return fmt.Errorf("failed to create dialer: %w", err)
-		}
-		r.dialer = dialer
+		r.updateDialer()
 	}
-	return nil
 }
 
 func (r *Rotation) updateDialer() error {
@@ -108,7 +96,7 @@ func (r *Rotation) HttpClient() *http.Client {
 	if r.httpClient == nil {
 		r.httpClient = &http.Client{
 			Transport: &http.Transport{
-				Dial: r.dialer.Dial, // Ensure the dialer is used
+				Dial: r.dialer.Dial,
 			},
 		}
 	}
