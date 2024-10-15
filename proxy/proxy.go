@@ -16,6 +16,7 @@ var (
 
 // example of parsed proxy obj below
 // https://username:password@192.168.1.1:8080
+// for now only support socks5
 type Proxy struct {
 	Type string `json:"type"`
 	Ip   string `json:"ip"`

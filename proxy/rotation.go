@@ -1,10 +1,11 @@
 package proxy
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ type Rotation struct {
 
 func NewRotation(filepath string) (*Rotation, error) {
 	var p Proxy
-	proxies, err := p.FromFile(filepath)
+	proxies, err := p.FromFile(path.Join(".", filepath))
 	if err != nil {
 		return &Rotation{}, err
 	}
@@ -30,17 +31,15 @@ func NewRotation(filepath string) (*Rotation, error) {
 	return rotate, nil
 }
 
-var errInvalidProxyUrl = errors.New("invalid proxy URL")
-
 func (r *Rotation) updateDialer() error {
 	cp := r.currentProxy()
 	proxyURL, err := url.Parse(cp.String())
 	if err != nil {
-		return errInvalidProxyUrl
+		return fmt.Errorf("failed to parse proxy url: %w", err)
 	}
 	dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
 	if err != nil {
-		return errInvalidProxyUrl
+		return fmt.Errorf("failed to create dialer: %w", err)
 	}
 	r.dialer = dialer
 	return nil
@@ -62,9 +61,7 @@ func (r *Rotation) Start(dur time.Duration, wg *sync.WaitGroup) {
 	for range ticker.C {
 		wg.Add(1)
 		if err := r.updateDialer(); err != nil {
-			fmt.Printf("failed to update dialer: %v\n", err)
-			r.advanceProxyIndex()
-			wg.Done()
+			log.Printf("failed to update dialer: %v", err)
 			continue
 		}
 		r.makeHttpClient()

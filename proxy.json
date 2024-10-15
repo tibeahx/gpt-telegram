@@ -1,14 +1,14 @@
 {
   "proxies": [
     {
-      "type": "https",
+      "type": "socks5",
       "ip": "192.168.1.1",
       "port": 8080,
       "user": "username",
       "pass": "password"
     },
     {
-      "type": "http",
+      "type": "socks5",
       "ip": "192.168.1.1",
       "port": 8080,
       "user": "username",

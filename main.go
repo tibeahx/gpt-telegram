@@ -34,11 +34,11 @@ func main() {
 		defer wg.Done()
 	}()
 
-	rotation, err := proxy.NewRotation("proxies.json")
+	rotation, err := proxy.NewRotation("proxy.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-	go rotation.Start(time.Duration(60), &wg)
+	go rotation.Start(time.Duration(time.Second*2), &wg)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
