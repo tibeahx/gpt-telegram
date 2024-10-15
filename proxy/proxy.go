@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path"
+
+	"github.com/tibeahx/gpt-helper/logger"
 )
 
 var (
@@ -25,21 +27,23 @@ type Proxy struct {
 	Pass string `json:"pass"`
 }
 
+var log = logger.GetLogger()
+
 func (p Proxy) FromFile(filepath string) ([]Proxy, error) {
 	if filepath == "" {
 		return nil, errEmptyFilepath
 	}
 	jsnFile, err := os.ReadFile(path.Join(".", "proxy.json"))
 	if err != nil {
-		fmt.Printf("error reading file: %v\n", err)
-		return nil, errFailedToReadFile
+		log.Errorf("error reading file: %v\n", err)
+		return nil, err
 	}
 	var wrapper struct {
 		Proxies []Proxy `json:"proxies"`
 	}
 	if err := json.Unmarshal(jsnFile, &wrapper); err != nil {
-		fmt.Printf("error unmarshaling file: %v\n", err)
-		return nil, errFailedToUnmarshalFile
+		log.Errorf("error unmarshaling file: %v\n", err)
+		return nil, err
 	}
 	return wrapper.Proxies, nil
 }

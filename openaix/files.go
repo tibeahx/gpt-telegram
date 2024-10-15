@@ -8,23 +8,20 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/telebot.v3"
 )
 
 type Files struct {
 	tele     *telebot.Bot
-	logger   *logrus.Logger
 	filePath string
 }
 
-func NewFiles(tele *telebot.Bot, logger *logrus.Logger) Files {
+func NewFiles(tele *telebot.Bot) Files {
 	if tele == nil {
 		return Files{}
 	}
 	return Files{
-		tele:   tele,
-		logger: logger,
+		tele: tele,
 	}
 }
 
@@ -32,7 +29,7 @@ func (f *Files) DownloadAsync(ctx context.Context, file *telebot.File, extension
 	var wg sync.WaitGroup
 	select {
 	case <-ctx.Done():
-		f.logger.Info("shut down")
+		log.Info("shut down")
 		return
 	default:
 		wg.Add(1)
@@ -42,7 +39,7 @@ func (f *Files) DownloadAsync(ctx context.Context, file *telebot.File, extension
 		}(file, extension)
 	}
 	wg.Wait()
-	f.logger.Info("done")
+	log.Info("done")
 }
 
 func (f *Files) download(file *telebot.File, extension string) {
@@ -83,18 +80,18 @@ func (f *Files) Cleanup() {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			f.logger.Infof("directory %s not found", root)
+			log.Infof("directory %s not found", root)
 			return
 		}
-		f.logger.Errorf("failed to read directory %s: %s", root, err)
+		log.Errorf("failed to read directory %s: %s", root, err)
 		return
 	}
 	for _, entry := range entries {
 		filePath := filepath.Join(root, entry.Name())
 		if err := os.Remove(filePath); err != nil {
-			f.logger.Errorf("failed to remove file %s: %s", filePath, err)
+			log.Errorf("failed to remove file %s: %s", filePath, err)
 			return
 		}
 	}
-	f.logger.Infof("removed %d files from %s", len(entries), root)
+	log.Infof("removed %d files from %s", len(entries), root)
 }

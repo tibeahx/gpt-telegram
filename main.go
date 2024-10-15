@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -9,20 +8,20 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/sirupsen/logrus"
+	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/proxy"
 	"github.com/tibeahx/gpt-helper/telegram"
 )
 
 func main() {
-	l := logrus.New()
+	log := logger.GetLogger()
+
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
-
-	ai := openaix.NewOpenAi(os.Getenv(("AI_TOKEN")), l)
-	b, err := telegram.NewBot(os.Getenv("BOT_TOKEN"), l, ai)
+	ai := openaix.NewOpenAi(os.Getenv(("AI_TOKEN")))
+	b, err := telegram.NewBot(os.Getenv("BOT_TOKEN"), ai)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,12 +37,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go rotation.Start(time.Duration(time.Second*2), &wg)
+	// configure proxy rotation in minutes
+	go rotation.Start(time.Duration(time.Minute*15), &wg)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sig
 
-	l.Info("shutting down...")
+	log.Info("shutting down...")
 	b.Stop()
 }

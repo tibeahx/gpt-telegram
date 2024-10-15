@@ -1,6 +1,8 @@
 package openaix
 
-import "github.com/sashabaranov/go-openai"
+import (
+	"github.com/sashabaranov/go-openai"
+)
 
 type chat struct {
 	role    string

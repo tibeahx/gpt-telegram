@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/session"
 
@@ -31,13 +31,12 @@ const (
 
 type Bot struct {
 	tele          *telebot.Bot
-	logger        *logrus.Logger
 	openai        *openaix.OpenAI
 	session       *session.InMemorySession
 	waitingForMsg map[int64]struct{}
 }
 
-func NewBot(token string, logger *logrus.Logger, openai *openaix.OpenAI) (*Bot, error) {
+func NewBot(token string, openai *openaix.OpenAI) (*Bot, error) {
 	opts := telebot.Settings{
 		Token:   token,
 		Poller:  &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -50,15 +49,16 @@ func NewBot(token string, logger *logrus.Logger, openai *openaix.OpenAI) (*Bot, 
 	}
 	return &Bot{
 		tele:          bot,
-		logger:        logger,
 		openai:        openai,
 		waitingForMsg: make(map[int64]struct{}),
 	}, nil
 }
 
+var log = logger.GetLogger()
+
 func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 	if b.session == nil {
-		b.session = session.NewSession(c, b.logger)
+		b.session = session.NewSession(c)
 	}
 	var (
 		sender      = c.Sender()
@@ -72,11 +72,11 @@ func (b *Bot) manageSession(c telebot.Context) (int64, error) {
 		return 0, errEmptyMsg
 	}
 	if messageText[0] == '/' {
-		b.logger.Warn("got command, will skip adding to session ctx")
+		log.Warn("got command, will skip adding to session ctx")
 		return senderId, nil
 	}
 	if len(b.session.Values(senderId)) > maxSessionCtxLenght {
-		b.logger.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.Values(senderId)))
+		log.Infof("session will be flushed due to oversize\n current len: %d", len(b.session.Values(senderId)))
 		b.session.Flush(senderId)
 	}
 	return senderId, nil
@@ -118,12 +118,16 @@ func (b *Bot) HandlePrompt(c telebot.Context) error {
 }
 
 func (b *Bot) HandleText(c telebot.Context) error {
+	if b.session == nil {
+		b.session = session.NewSession(c)
+	}
 	var (
 		messageText = c.Message().Text
 		senderId    = c.Sender().ID
 	)
-	if messageText != "" && !strings.HasPrefix(messageText, "/") && b.waitingForMsg != nil {
-		b.logger.Infof("got message: %s", messageText)
+
+	if _, waiting := b.waitingForMsg[senderId]; waiting && messageText != "" && !strings.HasPrefix(messageText, "/") {
+		log.Infof("got message: %s", messageText)
 		err := c.Send("`sending your message to openAI`")
 		if err != nil {
 			return err
@@ -151,32 +155,45 @@ func (b *Bot) HandleText(c telebot.Context) error {
 }
 
 func (b *Bot) HandleVoice(c telebot.Context) error {
+	if b.session == nil {
+		b.session = session.NewSession(c)
+	}
 	var (
 		file     = c.Message().Media().MediaFile()
 		senderId = c.Sender().ID
 	)
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	defer cancel()
 
-	files := openaix.NewFiles(b.tele, b.logger)
-	files.DownloadAsync(ctx, file, "ogg")
-	defer files.Cleanup()
+	if _, waiting := b.waitingForMsg[senderId]; waiting {
+		log.Info("got new audio")
+		err := c.Send("`sending your voice to openAI`")
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		defer cancel()
 
-	path := files.Filepath()
-	res, err := b.openai.Transcription(
-		ctx,
-		openaix.Options{
-			Path:     path,
-			C:        c,
-			Session:  b.session,
-			SenderID: senderId,
-		},
-	)
-	if err != nil {
-		return err
+		files := openaix.NewFiles(b.tele)
+		files.DownloadAsync(ctx, file, "ogg")
+		defer files.Cleanup()
+
+		path := files.Filepath()
+		log.Infof("got filepath: %s", path)
+		res, err := b.openai.Transcription(
+			ctx,
+			openaix.Options{
+				Path:     path,
+				C:        c,
+				Session:  b.session,
+				SenderID: senderId,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		delete(b.waitingForMsg, senderId)
+		return c.Send(res)
 	}
-	delete(b.waitingForMsg, senderId)
-	return c.Send(res)
+	return nil
 }
 
 func (b *Bot) HandleClear(c telebot.Context) error {
@@ -184,13 +201,17 @@ func (b *Bot) HandleClear(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
+
 	messages := b.session.Values(senderId)
 	if len(messages) == 0 {
-		return c.Send("noting to delete, your saved messages == 0")
+		return c.Send("nothing to delete, you have 0 messages in context")
 	}
-	b.logger.Info("about to clear session messages")
+
+	log.Info("about to clear session messages")
 	b.session.Flush(senderId)
-	return c.Send(fmt.Sprintf("flushed %d messages", len(messages)))
+
+	delete(b.waitingForMsg, senderId)
+	return c.Send(fmt.Sprintf("flushed %d messages from context", len(messages)))
 }
 
 func (b *Bot) HandleCommands(c telebot.Context) error {
@@ -215,12 +236,12 @@ func (b *Bot) commands() (str string) {
 }
 
 func (b *Bot) start() {
-	b.logger.Info("bot started...")
+	log.Info("bot started...")
 	b.tele.Start()
 }
 
 func (b *Bot) Stop() {
-	b.logger.Info("bot stopping...")
+	log.Info("bot stopping...")
 	b.tele.Stop()
 }
 

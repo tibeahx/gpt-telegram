@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/sashabaranov/go-openai"
-	"github.com/sirupsen/logrus"
+	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/session"
 	"gopkg.in/telebot.v3"
 )
@@ -22,17 +22,17 @@ var (
 	errNoPath   = errors.New("got empty path")
 )
 
+var log = logger.GetLogger()
+
 type OpenAI struct {
 	client *openai.Client
-	logger *logrus.Logger
 	chat   chat
 }
 
-func NewOpenAi(token string, logger *logrus.Logger) *OpenAI {
+func NewOpenAi(token string) *OpenAI {
 	client := openai.NewClient(token)
 	ai := &OpenAI{
-		chat:   newChat(),
-		logger: logger,
+		chat: newChat(),
 	}
 	if client != nil {
 		ai.client = client
@@ -60,7 +60,7 @@ func (ai *OpenAI) ReadPromptFromContext(ctx context.Context, opts Options) (open
 	msgx := ai.chat.toCompletion(messages)
 
 	err := opts.C.Send("`waiting for openAI response...`")
-	ai.logger.Info("sent text prompt to api")
+	log.Info("sent text prompt to api")
 	if err != nil {
 		return openai.ChatCompletionChoice{}, err
 	}
@@ -73,22 +73,22 @@ func (ai *OpenAI) ReadPromptFromContext(ctx context.Context, opts Options) (open
 		return openai.ChatCompletionChoice{}, err
 	}
 	opts.Session.Add(opts.SenderID, resp.Choices[0].Message.Content)
-	ai.logger.Info("got text response from api")
+	log.Info("got text response from api")
 	return resp.Choices[0], nil
 }
 
 func (ai *OpenAI) Transcription(ctx context.Context, opts Options) (string, error) {
-	if opts.Prompt == "" {
+	if opts.Path == "" {
 		return "", errNoPath
 	}
 	req := openai.AudioRequest{
 		Model:    Whisper1,
-		FilePath: opts.Prompt,
+		FilePath: opts.Path,
 		Format:   openai.AudioResponseFormatText,
 	}
 
 	err := opts.C.Send("`waiting for openAI response...`")
-	ai.logger.Info("sent audio prompt to api")
+	log.Info("sent audio prompt to api")
 	if err != nil {
 		return "", err
 	}
@@ -97,6 +97,6 @@ func (ai *OpenAI) Transcription(ctx context.Context, opts Options) (string, erro
 		return "", err
 	}
 	opts.Session.Add(opts.SenderID, trans.Text)
-	ai.logger.Info("got audio response from api")
+	log.Info("got audio response from api")
 	return trans.Text, nil
 }

@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -61,11 +60,12 @@ func (r *Rotation) Start(dur time.Duration, wg *sync.WaitGroup) {
 	for range ticker.C {
 		wg.Add(1)
 		if err := r.updateDialer(); err != nil {
-			log.Printf("failed to update dialer: %v", err)
+			log.Warnf("failed to update dialer: %v", err)
 			continue
 		}
 		r.makeHttpClient()
 		r.advanceProxyIndex()
+		log.Infof("current proxy: %v\n", r.currentProxy())
 		wg.Done()
 	}
 }
