@@ -1,7 +1,7 @@
 package openaix
 
 import (
-	"github.com/sashabaranov/go-openai"
+	"github.com/tibeahx/go-openai"
 )
 
 type chat struct {

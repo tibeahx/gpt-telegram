@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tibeahx/gpt-helper/config"
+	"github.com/tibeahx/gpt-helper/openaix"
 	"golang.org/x/net/proxy"
 )
 
@@ -27,7 +29,26 @@ func NewRotation(filepath string) (*Rotation, error) {
 	rotate := &Rotation{
 		proxies: proxies,
 	}
+	if err := rotate.setDialer(); err != nil {
+		return nil, fmt.Errorf("failed to set initial dialer: %w", err)
+	}
 	return rotate, nil
+}
+
+func (r *Rotation) setDialer() error {
+	if r.httpClient == nil {
+		cp := r.currentProxy()
+		proxyURL, err := url.Parse(cp.String())
+		if err != nil {
+			return fmt.Errorf("failed to parse proxy url: %w", err)
+		}
+		dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
+		if err != nil {
+			return fmt.Errorf("failed to create dialer: %w", err)
+		}
+		r.dialer = dialer
+	}
+	return nil
 }
 
 func (r *Rotation) updateDialer() error {
@@ -53,7 +74,11 @@ func (r *Rotation) makeHttpClient() {
 	}
 }
 
-func (r *Rotation) Start(dur time.Duration, wg *sync.WaitGroup) {
+func (r *Rotation) Start(ai *openaix.OpenAI, cfg *config.Config, wg *sync.WaitGroup) {
+	dur, err := time.ParseDuration(cfg.RotationDelay)
+	if err != nil {
+		log.Errorf("error parsing duration from config %v", err)
+	}
 	ticker := time.NewTicker(dur)
 	defer ticker.Stop()
 
@@ -65,6 +90,7 @@ func (r *Rotation) Start(dur time.Duration, wg *sync.WaitGroup) {
 		}
 		r.makeHttpClient()
 		r.advanceProxyIndex()
+		ai.UpdateHttpClient(cfg, r.HttpClient())
 		log.Infof("current proxy: %v\n", r.currentProxy())
 		wg.Done()
 	}
@@ -76,4 +102,15 @@ func (r *Rotation) currentProxy() Proxy {
 
 func (r *Rotation) advanceProxyIndex() {
 	r.currentProxyIdx = (r.currentProxyIdx + 1) % len(r.proxies)
+}
+
+func (r *Rotation) HttpClient() *http.Client {
+	if r.httpClient == nil {
+		r.httpClient = &http.Client{
+			Transport: &http.Transport{
+				Dial: r.dialer.Dial, // Ensure the dialer is used
+			},
+		}
+	}
+	return r.httpClient
 }
