@@ -3,11 +3,11 @@ package main
 import (
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 
-	"github.com/joho/godotenv"
+	"github.com/tibeahx/gpt-helper/config"
 	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/proxy"
@@ -17,11 +17,17 @@ import (
 func main() {
 	log := logger.GetLogger()
 
-	if err := godotenv.Load(); err != nil {
+	rotation, err := proxy.NewRotation("proxy.json")
+	if err != nil {
 		log.Fatal(err)
 	}
-	ai := openaix.NewOpenAi(os.Getenv(("AI_TOKEN")))
-	b, err := telegram.NewBot(os.Getenv("BOT_TOKEN"), ai)
+
+	cfg := config.LoadConfig(filepath.Join(".", "config.yaml"))
+
+	clientReady := make(chan struct{})
+
+	ai := openaix.NewOpenAi(cfg, rotation.HttpClient())
+	b, err := telegram.NewBot(cfg, ai)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,12 +39,12 @@ func main() {
 		defer wg.Done()
 	}()
 
-	rotation, err := proxy.NewRotation("proxy.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	// configure proxy rotation in minutes
-	go rotation.Start(time.Duration(time.Minute*15), &wg)
+	go func() {
+		rotation.Start(ai, cfg, &wg)
+		close(clientReady)
+	}()
+
+	<-clientReady
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

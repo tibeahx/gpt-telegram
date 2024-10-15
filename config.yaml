@@ -1,0 +1,2 @@
+baseUrl: "https://api.proxyapi.ru/openai/v1" 
+rotationDelay: "1h"  #available formats are: "300ms", "-1.5h" or "2h45m".

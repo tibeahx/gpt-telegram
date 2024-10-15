@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tibeahx/gpt-helper/config"
 	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/openaix"
 	"github.com/tibeahx/gpt-helper/session"
@@ -36,9 +37,9 @@ type Bot struct {
 	waitingForMsg map[int64]struct{}
 }
 
-func NewBot(token string, openai *openaix.OpenAI) (*Bot, error) {
+func NewBot(cfg *config.Config, openai *openaix.OpenAI) (*Bot, error) {
 	opts := telebot.Settings{
-		Token:   token,
+		Token:   cfg.BotApikey,
 		Poller:  &telebot.LongPoller{Timeout: 10 * time.Second},
 		Verbose: true,
 	}

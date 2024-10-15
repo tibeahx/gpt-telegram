@@ -3,8 +3,10 @@ package openaix
 import (
 	"context"
 	"errors"
+	"net/http"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/tibeahx/go-openai"
+	"github.com/tibeahx/gpt-helper/config"
 	"github.com/tibeahx/gpt-helper/logger"
 	"github.com/tibeahx/gpt-helper/session"
 	"gopkg.in/telebot.v3"
@@ -14,6 +16,7 @@ const (
 	GPT4o     = "gpt-4o"
 	GPT4oMini = "gpt-4o-mini"
 	Whisper1  = "whisper-1"
+	TTS1      = "tts-1"
 )
 
 var (
@@ -29,8 +32,12 @@ type OpenAI struct {
 	chat   chat
 }
 
-func NewOpenAi(token string) *OpenAI {
-	client := openai.NewClient(token)
+func NewOpenAi(cfg *config.Config, httpClient *http.Client) *OpenAI {
+	client := openai.NewClientWithConfig(openai.ConfigWithCustomHttpClient(
+		cfg.BaseUrl,
+		cfg.AiApikey,
+		httpClient,
+	))
 	ai := &OpenAI{
 		chat: newChat(),
 	}
@@ -38,6 +45,11 @@ func NewOpenAi(token string) *OpenAI {
 		ai.client = client
 	}
 	return ai
+}
+
+func (ai *OpenAI) UpdateHttpClient(cfg *config.Config, httpClient *http.Client) {
+	aiConfig := openai.ConfigWithCustomHttpClient(cfg.BaseUrl, cfg.AiApikey, httpClient)
+	ai.client = openai.NewClientWithConfig(aiConfig)
 }
 
 type Options struct {

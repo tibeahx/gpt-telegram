@@ -10,14 +10,9 @@ import (
 	"github.com/tibeahx/gpt-helper/logger"
 )
 
-var (
-	errEmptyFilepath         = errors.New("filepath is empty")
-	errFailedToReadFile      = errors.New("failed to read file")
-	errFailedToUnmarshalFile = errors.New("failed to unmarshal file")
-)
-
 // example of parsed proxy obj below
 // https://username:password@192.168.1.1:8080
+
 // for now only support socks5
 type Proxy struct {
 	Type string `json:"type"`
@@ -28,6 +23,7 @@ type Proxy struct {
 }
 
 var log = logger.GetLogger()
+var errEmptyFilepath = errors.New("filepath is empty")
 
 func (p Proxy) FromFile(filepath string) ([]Proxy, error) {
 	if filepath == "" {
